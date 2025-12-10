@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StereoWorld: Geometry-Aware Monocular-to-Stereo Video Generation</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #f9fbff;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f0f5ff;
+            --text-primary: #0f1b3f;
+            --text-secondary: #4b5675;
+            --accent: #ff9f1c;
+            --accent-hover: #f48c00;
+            --border: #dfe6f3;
+            --shadow-soft: 0 12px 30px rgba(17, 76, 143, 0.08);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        /* Navigation Bar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            z-index: 1000;
+            padding: 1rem 0;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: var(--text-primary);
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+
+        .logo img {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+            filter: brightness(1.1);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s, transform 0.2s;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 8rem 0 4rem;
+            text-align: center;
+            background: linear-gradient(180deg, #fef9f3 0%, #f6fbff 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -10%;
+            left: 10%;
+            width: 240px;
+            height: 240px;
+            background: radial-gradient(circle, rgba(255,159,28,0.25) 0%, rgba(255,159,28,0) 60%);
+            filter: blur(10px);
+            pointer-events: none;
+        }
+
+        .hero::after {
+            /* 替换GIF为MP4视频背景 */
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0.35;
+            mix-blend-mode: normal;
+            pointer-events: none;
+            z-index: 0;
+            /* 不再用background图片，视频节点由JS动态插入 */
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(120deg, #ff9f1c 0%, #ffbf69 40%, #2ec4b6 90%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-card {
+            position: relative;
+            z-index: 1;
+            max-width: 960px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem 2rem;
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(10px);
+        }
+
+        .authors {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .author {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .author a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .author a:hover {
+            color: var(--accent-hover);
+        }
+
+        /* Content Sections */
+        .section {
+            padding: 4rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+            position: relative;
+            padding-left: 1rem;
+        }
+
+        .section-title::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--accent) 0%, rgba(46,196,182,0.15) 100%);
+        }
+
+        /* TLDR */
+        .tldr {
+            background: var(--bg-secondary);
+            border-left: 3px solid var(--accent);
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border-radius: 8px;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .tldr h3 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        /* Abstract */
+        .abstract {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            line-height: 1.8;
+            text-align: justify;
+        }
+
+        /* Method */
+        .method {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        .method-content {
+            background: var(--bg-secondary);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .method-content h3 {
+            color: var(--accent);
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .method-content p {
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        /* Video Display */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        /* 新增样式：用于最后三行每行两个的布局 */
+        .video-row-two {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        .video-item {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .video-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 36px rgba(17, 76, 143, 0.12);
+        }
+
+        .video-item video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .video-caption {
+            padding: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            text-align: center;
+        }
+
+        .video-caption strong {
+            color: var(--text-primary);
+        }
+
+        /* Comparison Display */
+        .comparison-wrapper {
+            margin-top: 2rem;
+            overflow-x: auto;
+        }
+
+        .comparison-table {
+            display: grid;
+            gap: 1rem;
+            min-width: 1100px;
+        }
+
+        .comparison-header {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(200px, 1fr));
+            gap: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .comparison-row {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(200px, 1fr));
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .comparison-cell {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .comparison-cell video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .comparison-label {
+            padding: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Bib Citation */
+        .bib {
+            background: var(--bg-secondary);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            box-shadow: var(--shadow-soft);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            background: var(--accent);
+            border: 2px solid var(--accent);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 999px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            transition: all 0.25s;
+            margin: 0.5rem;
+            box-shadow: var(--shadow-soft);
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 28px rgba(255,159,28,0.3);
+        }
+
+        /* Footer */
+        .footer {
+            padding: 3rem 0;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .hero .subtitle {
+                font-size: 1rem;
+            }
+
+            .section-title {
+                font-size: 1.5rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .video-grid,
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+            .video-row-two {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Scroll Animation */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* 新增：用于视频背景定位和遮挡 */
+        .hero-bg-video-wrapper {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .hero-bg-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.65;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <img src="logo.png" alt="StereoWorld logo">
+                <span>StereoWorld</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#abstract">Abstract</a></li>
+                <li><a href="#method">Method</a></li>
+                <li><a href="#comparison">Comparison</a></li>
+                <li><a href="#examples">Examples</a></li>
+                <li><a href="#citation">Citation</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <!-- 新增视频背景节点，将sfsf.mp4放在hero内容下层 -->
+        <div class="hero-bg-video-wrapper">
+            <video class="hero-bg-video" src="sfsf.mp4" autoplay loop muted playsinline></video>
+        </div>
+        <div class="container">
+            <div class="hero-card">
+                <h1>StereoWorld: Geometry-Aware Monocular-to-Stereo Video Generation</h1>
+                <p class="subtitle">Geometry-Aware Monocular-to-Stereo Video Generation</p>
+                <div class="authors">
+                    <span class="author"><a href="#">Ke Xing</a><sup>1,2,4</sup></span>
+                    <span class="author"><a href="#">Longfei Li</a><sup>1,4</sup></span>
+                    <span class="author"><a href="#">Yuyang Yin</a><sup>1,4</sup></span>
+                    <span class="author"><a href="#">Hanwen Liang</a><sup>3</sup></span>
+                    <span class="author"><a href="#">Guixun Luo</a><sup>1,4</sup></span>
+                    <span class="author"><a href="#">Chen Fang</a><sup>2</sup></span>
+                    <span class="author"><a href="#">Jue Wang</a><sup>2</sup></span>
+                    <span class="author"><a href="#">Konstantinos N. Plataniotis</a><sup>3</sup></span>
+                    <span class="author"><a href="#">Xiaojie Jin</a><sup>1,4</sup></span>
+                    <span class="author"><a href="#">Yao Zhao</a><sup>1,4</sup></span>
+                    <span class="author"><a href="#">Yunchao Wei</a><sup>1,4,&dagger;</sup></span>
+                </div>
+                <div style="margin-top: 2rem;">
+                    <span class="author"><sup>1</sup>Beijing Jiaotong University</span>
+                    <span class="author" style="margin-left: 1rem;"><sup>2</sup>Dzine AI</span>
+                    <span class="author" style="margin-left: 1rem;"><sup>3</sup>University of Toronto</span>
+                    <span class="author" style="margin-left: 1rem;"><sup>4</sup>Visual Intelligence + X International Joint Laboratory</span>
+                </div>
+                <div style="margin-top: 0.75rem;">
+                    <span class="author"><sup>&dagger;</sup> Corresponding Author</span>
+                </div>
+                <div style="margin-top: 2rem;">
+                    <a href="#" class="btn">Paper</a>
+                    <!-- <a href="#" class="btn">Code</a>
+                    <a href="#" class="btn">Dataset</a> -->
+                    
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- TLDR -->
+    <section class="section">
+        <div class="container">
+            <div class="tldr">
+                <h3>TL;DR</h3>
+                <ul style="color: var(--text-secondary); line-height: 1.8; padding-left: 1.1rem; display: grid; gap: 0.6rem; list-style: disc;">
+                    <li>We propose <strong>StereoWorld</strong>, the first fully end-to-end diffusion framework that adapts a pretrained monocular video generative model into a stereo generator with high visual fidelity and geometric accuracy.</li>
+                    <li>We build a large-scale, high-definition <strong>stereo video dataset</strong> aligned with human-IPD, featuring over 11M curated Blu-ray SBS video frames across diverse genres with comprehensive evaluation metrics.</li>
+                    <li>Extensive experiments demonstrate that StereoWorld substantially outperforms prior works in visual quality, geometric consistency, and temporal stability, with clear advantages in both objective metrics and subjective perception.</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Abstract -->
+    <section class="section" id="abstract">
+        <div class="container">
+            <h2 class="section-title">Abstract</h2>
+            <div class="abstract">
+                <p>
+                    The growing adoption of XR devices has fueled strong demand for high-quality stereo video,
+                    yet its production remains costly and artifact-prone. To address this challenge, we present
+                    StereoWorld, an end-to-end framework that repurposes a pretrained video generator for
+                    high-fidelity monocular-to-stereo video generation. Our framework jointly conditions the
+                    model on the monocular video input while explicitly supervising the generation with a
+                    geometry-aware regularization to ensure 3D structural fidelity. A spatio-temporal tiling
+                    scheme is further integrated to enable efficient, high-resolution synthesis. To enable
+                    large-scale training and evaluation, we curate a high-definition stereo video dataset
+                    containing over 11M frames aligned to natural human interpupillary distance (IPD).
+                    Extensive experiments demonstrate that StereoWorld substantially outperforms prior methods,
+                    generating stereo videos with superior visual fidelity and geometric consistency.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Method -->
+    <section class="section" id="method">
+        <div class="container">
+            <h2 class="section-title">Method</h2>
+            <div class="method-content" style="margin-top:0;">
+                <h3 style="margin-bottom:1rem;">StereoWorld-11M Dataset</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.25rem;align-items:start;">
+                    <div>
+                        <table style="width:100%; border-collapse: collapse; font-size: 0.95rem; color: var(--text-secondary);">
+                            <thead>
+                                <tr style="border-bottom:1px solid var(--border); color: var(--text-primary); text-align:left;">
+                                    <th style="padding:0.4rem 0.3rem;">Dataset</th>
+                                    <th style="padding:0.4rem 0.3rem;">Domain</th>
+                                    <th style="padding:0.4rem 0.3rem; text-align:center;">IPD-aligned</th>
+                                    <th style="padding:0.4rem 0.3rem; text-align:center;">Available</th>
+                                    <th style="padding:0.4rem 0.3rem; text-align:right;">Frames</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:0.35rem 0.3rem;">Spring</td>
+                                    <td style="padding:0.35rem 0.3rem;">Optical Flow</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✗</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✓</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:right;">5K</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:0.35rem 0.3rem;">Sintel</td>
+                                    <td style="padding:0.35rem 0.3rem;">Optical Flow</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✗</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✓</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:right;">1K</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:0.35rem 0.3rem;">VKITTI2</td>
+                                    <td style="padding:0.35rem 0.3rem;">Driving</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✗</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✓</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:right;">21K</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:0.35rem 0.3rem;">PLT-D3</td>
+                                    <td style="padding:0.35rem 0.3rem;">Driving</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✗</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✓</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:right;">3K</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:0.35rem 0.3rem;">IRS</td>
+                                    <td style="padding:0.35rem 0.3rem;">Robotics</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✗</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✓</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:right;">103K</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:0.35rem 0.3rem;">TartanAir</td>
+                                    <td style="padding:0.35rem 0.3rem;">Robotics</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✗</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✓</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:right;">306K</td>
+                                </tr>
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:0.35rem 0.3rem;">3D Movies</td>
+                                    <td style="padding:0.35rem 0.3rem;">Movies</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✓</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:center;">✗</td>
+                                    <td style="padding:0.35rem 0.3rem; text-align:right;">75K</td>
+                                </tr>
+                                <tr style="background: rgba(0,212,255,0.08); border:1px solid var(--border);">
+                                    <td style="padding:0.45rem 0.3rem; color: var(--text-primary); font-weight:600;">StereoWorld-11M</td>
+                                    <td style="padding:0.45rem 0.3rem; color: var(--text-primary);">Movies</td>
+                                    <td style="padding:0.45rem 0.3rem; text-align:center; color: var(--text-primary);">✓</td>
+                                    <td style="padding:0.45rem 0.3rem; text-align:center; color: var(--text-primary);">✓</td>
+                                    <td style="padding:0.45rem 0.3rem; text-align:right; color: var(--text-primary); font-weight:700;">11M</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <p style="color: var(--text-secondary); line-height: 1.8; margin-bottom:0.75rem;">
+                            We curated a new dataset tailored for stereo video generation with baseline (distance between
+two cameras) aligned to natural human perception.
+                            We collected and cleaned over a hundred high-definition Blu-ray side-by-side (SBS) stereo movies spanning
+                            animation, realism, war, sci-fi, historical, and drama, ensuring visual diversity and richness.
+                        </p>
+                        <p style="color: var(--text-secondary); line-height: 1.8; margin-bottom:0.75rem;">
+                            All videos are unified into SBS by stretching and horizontal cropping to obtain left–right views, each at
+                            1080p, 16:9, 24 fps. To match the base model requirements (480p resolution, 81-frame inputs), we uniformly
+                            downscale to 480p.
+                        </p>
+                        <p style="color: var(--text-secondary); line-height: 1.8;">
+                            To enhance motion diversity and temporal density, we uniformly sample 81 frames per clip at fixed intervals.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="method-content" style="margin-top:0;">
+                <h3 style="margin-bottom:1rem;">Framework</h3>
+                <img src="framework.png" alt="StereoWorld training and inference framework" style="width:100%;border-radius:8px;border:1px solid var(--border);">
+                <p style="color: var(--text-secondary); margin-top: 0.75rem; line-height: 1.8;">
+                    Before training, we use Video Depth Anything and Stereo Any Video
+                    to obtain the depth maps <code>D_r</code> and disparity maps <code>Disp<sub>gt</sub></code>, and the left-view videos are then
+                    concatenated with the right-view videos and corresponding depth maps along the frame dimension in the latent
+                    space as conditioning inputs. During training, a lightweight differentiable stereo projector estimates the
+                    disparity between the input left-view and the generated right-view, which is supervised by disparity maps
+                    <code>Disp<sub>gt</sub></code> via disparity loss to enforce accurate geometric correspondence. Additionally, the last few
+                    DiT blocks are duplicated to form dual branches, allowing the model to learn RGB and depth distributions
+                    separately to further supplement geometric information. During inference, only the shared and RGB DiT blocks
+                    are used, taking the monocular video as the sole input.
+                </p>
+            </div>
+
+            <div class="method-content" style="margin-top:2rem;">
+                <h3 style="margin-bottom:1rem;">Practical and Scalable Optimization</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.25rem;align-items:start;">
+                    <div>
+                        <h4 style="margin-bottom:0.75rem;">Temporal Tiling Strategy</h4>
+                        <img src="long.png" alt="StereoWorld long video tiling" style="width:100%;border-radius:8px;border:1px solid var(--border);">
+                        <p style="color: var(--text-secondary); margin-top: 0.6rem; line-height: 1.8;">
+                            During training, the first few frames of noisy latents are replaced with ground-truth frames with a probability
+                            <code>p</code>. During inference, long videos are split into overlapping segments, with the last frames of the previous
+                            segment used to guide the next, ensuring temporal consistency.
+                        </p>
+                    </div>
+                    <div>
+                        <h4 style="margin-bottom:0.75rem;">Spatial Tiling Strategy</h4>
+                        <img src="big.png" alt="StereoWorld high-resolution tiling" style="width:100%;border-radius:8px;border:1px solid var(--border);">
+                        <p style="color: var(--text-secondary); margin-top: 0.6rem; line-height: 1.8;">
+                            During inference, high-resolution videos are encoded into latents, which are split into overlapping tiles.
+                            Each tile is denoised independently, and then the tiles are stitched back to the original size with overlapping
+                            regions fused before decoding.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison -->
+    <section class="section" id="comparison">
+        <div class="container">
+            <h2 class="section-title">Comparison (Generated Right-View 480p)</h2>
+            <!-- INSERT_YOUR_CODE -->
+            <div style="overflow-x:auto;margin-bottom:2.5rem;">
+                <table style="width:100%;border-collapse:collapse;background:rgba(255,255,255,0.93);border-radius:10px;box-shadow:0 2px 12px rgba(120,140,170,0.05);font-size:1rem;">
+                    <thead style="background:#f7fafc;">
+                        <tr>
+                            <th style="text-align:left;padding: 0.75em 0.1em; font-weight:700; border-bottom: 2px solid #e9ecef;">Method</th>
+                            <th style="text-align:left;padding: 0.75em 0.1em; font-weight:700; border-bottom: 2px solid #e9ecef;">PSNR &#8593;</th>
+                            <th style="text-align:left;padding: 0.75em 0em; font-weight:700; border-bottom: 2px solid #e9ecef;">SSIM &#8593;</th>
+                            <th style="text-align:left;padding: 0.75em 0em; font-weight:700; border-bottom: 2px solid #e9ecef;">LPIPS &#8595;</th>
+                            <th style="text-align:left;padding: 0.75em 0em; font-weight:700; border-bottom: 2px solid #e9ecef;">IQ-Score &#8593;</th>
+                            <th style="text-align:left;padding: 0.75em 0em; font-weight:700; border-bottom: 2px solid #e9ecef;">TF-Score &#8593;</th>
+                            <th style="text-align:left;padding: 0.75em 0em; font-weight:700; border-bottom: 2px solid #e9ecef;">EPE &#8595;</th>
+                            <th style="text-align:left;padding: 0.75em 0em; font-weight:700; border-bottom: 2px solid #e9ecef;">D1-all &#8595;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align:left;padding:0.65em 0.4em; border-bottom:1px solid #f1f1f4;">
+                                GenStereo <span style="color:#888;font-size:0.95em;"></span>
+                            </td>
+                            <td style="text-align:left;">19.4486</td>
+                            <td style="text-align:left;">0.6803</td>
+                            <td style="text-align:left;">0.3008</td>
+                            <td style="text-align:left;">0.4047</td>
+                            <td style="text-align:left;">0.9642</td>
+                            <td style="text-align:left;">35.0022</td>
+                            <td style="text-align:left;">0.8954</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;padding:0.65em 0.4em; border-bottom:1px solid #f1f1f4;">
+                                SVG <span style="color:#888;font-size:0.95em;"></span>
+                            </td>
+                            <td style="text-align:left;">18.0256</td>
+                            <td style="text-align:left;">0.5881</td>
+                            <td style="text-align:left;">0.3467</td>
+                            <td style="text-align:left;">0.4714</td>
+                            <td style="text-align:left;"><strong>0.9706</strong></td>
+                            <td style="text-align:left;">33.2508</td>
+                            <td style="text-align:left;">0.9630</td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;padding:0.65em 0.4em; border-bottom:1px solid #f1f1f4;">
+                                StereoCrafter <span style="color:#888;font-size:0.95em;"></span>
+                            </td>
+                            <td style="text-align:left;">23.0372</td>
+                            <td style="text-align:left;">0.6561</td>
+                            <td style="text-align:left;">0.1869</td>
+                            <td style="text-align:left;">0.4370</td>
+                            <td style="text-align:left;">0.9685</td>
+                            <td style="text-align:left;">24.7784</td>
+                            <td style="text-align:left;">0.5271</td>
+                        </tr>
+                        <tr style="background:linear-gradient(120deg,#fffded 0%,#f8feff 100%);">
+                            <td style="text-align:left;padding:0.65em 0.4em;font-weight:600;color:#184;">Ours</td>
+                            <td style="text-align:left;"><strong>25.9794</strong></td>
+                            <td style="text-align:left;"><strong>0.7964</strong></td>
+                            <td style="text-align:left;"><strong>0.0952</strong></td>
+                            <td style="text-align:left;"><strong>0.5019</strong></td>
+                            <td style="text-align:left;">0.9704</td>
+                            <td style="text-align:left;"><strong>17.4527</strong></td>
+                            <td style="text-align:left;"><strong>0.4213</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="comparison-wrapper">
+                <div class="comparison-table">
+                    <div class="comparison-header">
+                        <div>GenStereo</div>
+                        <div>SVG</div>
+                        <div>StereoCrafter</div>
+                        <div>Ours</div>
+                        <div>GT</div>
+                    </div>
+
+                    <div class="comparison-row">
+                        <div class="comparison-cell">
+                            <video controls src="GenStereo/00001_segment_0137.mp4"></video>
+                            <div class="comparison-label">00001_segment_0137</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="SVG/00001_segment_0137.mp4"></video>
+                            <div class="comparison-label">00001_segment_0137</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="StereoCrafter/00001_segment_0137_inpainting_results.mp4"></video>
+                            <div class="comparison-label">00001_segment_0137</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="Ours/00001_segment_0137.mp4"></video>
+                            <div class="comparison-label">00001_segment_0137</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="GT/00001_segment_0137.mp4"></video>
+                            <div class="comparison-label">00001_segment_0137</div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-row">
+                        <div class="comparison-cell">
+                            <video controls src="GenStereo/00036_segment_0019.mp4"></video>
+                            <div class="comparison-label">00036_segment_0019</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="SVG/00036_segment_0019.mp4"></video>
+                            <div class="comparison-label">00036_segment_0019</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="StereoCrafter/00036_segment_0019_inpainting_results.mp4"></video>
+                            <div class="comparison-label">00036_segment_0019</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="Ours/00036_segment_0019.mp4"></video>
+                            <div class="comparison-label">00036_segment_0019</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="GT/00036_segment_0019.mp4"></video>
+                            <div class="comparison-label">00036_segment_0019</div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-row">
+                        <div class="comparison-cell">
+                            <video controls src="GenStereo/00093_segment_0393.mp4"></video>
+                            <div class="comparison-label">00093_segment_0393</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="SVG/00093_segment_0393.mp4"></video>
+                            <div class="comparison-label">00093_segment_0393</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="StereoCrafter/00093_segment_0393_inpainting_results.mp4"></video>
+                            <div class="comparison-label">00093_segment_0393</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="Ours/00093_segment_0393.mp4"></video>
+                            <div class="comparison-label">00093_segment_0393</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="GT/00093_segment_0393.mp4"></video>
+                            <div class="comparison-label">00093_segment_0393</div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-row">
+                        <div class="comparison-cell">
+                            <video controls src="GenStereo/00093_segment_0455.mp4"></video>
+                            <div class="comparison-label">00093_segment_0455</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="SVG/00093_segment_0455.mp4"></video>
+                            <div class="comparison-label">00093_segment_0455</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="StereoCrafter/00093_segment_0455_inpainting_results.mp4"></video>
+                            <div class="comparison-label">00093_segment_0455</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="Ours/00093_segment_0455.mp4"></video>
+                            <div class="comparison-label">00093_segment_0455</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="GT/00093_segment_0455.mp4"></video>
+                            <div class="comparison-label">00093_segment_0455</div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-row">
+                        <div class="comparison-cell">
+                            <video controls src="GenStereo/00095_segment_0156.mp4"></video>
+                            <div class="comparison-label">00095_segment_0156</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="SVG/00095_segment_0156.mp4"></video>
+                            <div class="comparison-label">00095_segment_0156</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="StereoCrafter/00095_segment_0156_inpainting_results.mp4"></video>
+                            <div class="comparison-label">00095_segment_0156</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="Ours/00095_segment_0156.mp4"></video>
+                            <div class="comparison-label">00095_segment_0156</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="GT/00095_segment_0156.mp4"></video>
+                            <div class="comparison-label">00095_segment_0156</div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-row">
+                        <div class="comparison-cell">
+                            <video controls src="GenStereo/00127_segment_0191.mp4"></video>
+                            <div class="comparison-label">00127_segment_0191</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="SVG/00127_segment_0191.mp4"></video>
+                            <div class="comparison-label">00127_segment_0191</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="StereoCrafter/00127_segment_0191_inpainting_results.mp4"></video>
+                            <div class="comparison-label">00127_segment_0191</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="Ours/00127_segment_0191.mp4"></video>
+                            <div class="comparison-label">00127_segment_0191</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="GT/00127_segment_0191.mp4"></video>
+                            <div class="comparison-label">00127_segment_0191</div>
+                        </div>
+                    </div>
+
+                    <div class="comparison-row">
+                        <div class="comparison-cell">
+                            <video controls src="GenStereo/00134_segment_1314.mp4"></video>
+                            <div class="comparison-label">00134_segment_1314</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="SVG/00134_segment_1314.mp4"></video>
+                            <div class="comparison-label">00134_segment_1314</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="StereoCrafter/00134_segment_1314_inpainting_results.mp4"></video>
+                            <div class="comparison-label">00134_segment_1314</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="Ours/00134_segment_1314.mp4"></video>
+                            <div class="comparison-label">00134_segment_1314</div>
+                        </div>
+                        <div class="comparison-cell">
+                            <video controls src="GT/00134_segment_1314.mp4"></video>
+                            <div class="comparison-label">00134_segment_1314</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- More Examples -->
+    <section class="section" id="examples">
+        <div class="container">
+            <h2 class="section-title">More Examples (Side-by-Side Format)</h2>
+            <div>
+                <!-- First 8 videos follow 4-column grid as before -->
+                <div class="video-grid">
+                    <div class="video-item">
+                        <video controls src="examples/1.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/13.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/3.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/4.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/7.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/6.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+
+                </div>
+                <!-- Last 6 videos, arranged as 3 rows of 2 videos per row -->
+                <div class="video-row-two" style="margin-top:2rem;">
+                    <div class="video-item">
+                        <video controls src="examples/12.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/8.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/9.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/10.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                </div>
+                <div class="video-row-two" style="margin-top:2rem;">
+                    <div class="video-item">
+                        <video controls src="examples/11.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/x.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                </div>
+                <div class="video-row-two" style="margin-top:2rem;">
+                    <div class="video-item">
+                        <video controls src="examples/a1.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                    <div class="video-item">
+                        <video controls src="examples/a2.mp4"></video>
+                        <div class="video-caption"><strong>Example</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Citation -->
+    <section class="section" id="citation">
+        <div class="container">
+            <h2 class="section-title">Citation</h2>
+            <div class="bib">
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 StereoWorld Project. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Scroll animation
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('fade-in');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.section').forEach(section => {
+            observer.observe(section);
+        });
+
+        // Video loading handling
+        document.querySelectorAll('video').forEach(video => {
+            video.addEventListener('error', function() {
+                this.style.display = 'none';
+                const placeholder = document.createElement('div');
+                placeholder.style.cssText = `
+                    width: 100%;
+                    height: 300px;
+                    background: var(--bg-tertiary);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--text-secondary);
+                    font-size: 0.9rem;
+                `;
+                placeholder.textContent = 'Video loading failed. Please check the video path.';
+                this.parentNode.insertBefore(placeholder, this);
+            });
+        });
+    </script>
+</body>
+</html>
